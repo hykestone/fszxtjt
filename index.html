@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>复式折线统计图 · 互动课件</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js" integrity="sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss" crossorigin="anonymous"></script>
+<style>
+/* ============ 基础 ============ */
+*{ box-sizing:border-box; }
+html{ color-scheme:light; }
+body{
+  margin:0;
+  font-family:"Noto Sans SC","Microsoft YaHei","PingFang SC","Helvetica Neue",Arial,sans-serif;
+  background:#F3F6FA;
+  color:#26313D;
+  line-height:1.6;
+}
+[hidden]{ display:none !important; }
+button{ font-family:inherit; }
+
+/* ============ 顶栏 ============ */
+.hero{ background:#1F3A5F; color:#fff; padding:34px 24px 26px; }
+.hero-inner{ max-width:1280px; margin:0 auto; }
+.kicker{ font-size:13px; letter-spacing:4px; color:#9FBFE0; margin:0 0 8px; font-weight:500; }
+.hero h1{ font-family:"Noto Serif SC","Songti SC",SimSun,serif; font-size:clamp(28px,4vw,42px); font-weight:900; margin:0 0 8px; letter-spacing:1px; }
+.hero h1 .accent{ color:#F2A35B; }
+.sub{ font-size:16px; color:rgba(255,255,255,.82); margin:0 0 16px; }
+.hero-chips{ display:flex; gap:12px; flex-wrap:wrap; }
+.chip-item{ display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.22); border-radius:999px; padding:6px 14px; font-size:14px; }
+
+/* ============ 符号标记 ============ */
+.mark-d,.mark-r{ display:inline-block; width:11px; height:11px; flex:none; }
+.mark-d{ background:#1E6FBF; transform:rotate(45deg); }
+.mark-r{ background:#C93A32; }
+
+/* ============ 布局 ============ */
+.wrap{ max-width:1280px; margin:0 auto; padding:22px 20px 8px; }
+.main-grid{ display:grid; grid-template-columns:340px minmax(0,1fr); gap:18px; align-items:start; }
+@media (max-width:980px){
+  .main-grid{ grid-template-columns:1fr; }
+  .panel{ order:2; }
+  .teach-card{ order:1; }
+}
+.foot{ max-width:1280px; margin:0 auto; padding:20px; color:#8A93A0; font-size:13px; }
+
+/* ============ 卡片 ============ */
+.card{ background:#fff; border:1px solid #D7E0EA; border-radius:16px; padding:20px; }
+.card-head{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.card-head h2{ font-family:"Noto Serif SC","Songti SC",SimSun,serif; font-size:20px; font-weight:700; color:#1F3A5F; margin:0; }
+.step-switch{ display:flex; gap:8px; }
+.chip{ border:1px solid #C9D4E0; background:#fff; color:#6B7889; border-radius:999px; padding:8px 16px; font-size:14px; cursor:pointer; min-height:38px; transition:border-color .15s,color .15s; }
+.chip.active{ background:#1F3A5F; border-color:#1F3A5F; color:#fff; font-weight:600; }
+.chip:hover:not(.active){ border-color:#1E6FBF; color:#1E6FBF; }
+
+/* 图表区：坐标纸底纹 */
+.chart-stage{
+  border:1px solid #DCE4ED; border-radius:12px;
+  background-color:#fff;
+  background-image:linear-gradient(rgba(190,205,221,.28) 1px,transparent 1px),linear-gradient(90deg,rgba(190,205,221,.28) 1px,transparent 1px);
+  background-size:34px 34px;
+}
+#mainChart{ width:100%; height:440px; }
+@media (max-width:768px){ #mainChart{ height:340px; } }
+
+/* ============ 读数条 ============ */
+.readout{
+  margin-top:12px; padding:13px 16px; border-radius:12px;
+  background:#F3F6FA; border:1px dashed #C9D4E0;
+  min-height:54px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  font-size:15px; color:#6B7889;
+}
+.readout .big{ font-size:34px; font-weight:900; color:#E8842D; font-variant-numeric:tabular-nums; line-height:1; animation:popNum .45s ease-out; }
+.readout .txt{ color:#26313D; font-weight:600; }
+@keyframes popNum{ 0%{ transform:scale(.6); opacity:0; } 60%{ transform:scale(1.15); } 100%{ transform:scale(1); opacity:1; } }
+
+/* ============ 数据表 ============ */
+details.data-table{ margin-top:12px; }
+details.data-table summary{ cursor:pointer; font-size:14px; color:#1E6FBF; padding:4px 0; user-select:none; }
+table.tbl{ width:100%; border-collapse:collapse; margin-top:8px; font-size:14px; }
+.tbl th,.tbl td{ border:1px solid #DCE4ED; padding:7px 6px; text-align:center; }
+.tbl th{ background:#F3F6FA; color:#1F3A5F; font-weight:600; }
+.tbl td{ color:#26313D; font-variant-numeric:tabular-nums; }
+.tbl tr.diff-max td{ background:#FDF3E7; color:#B25E12; font-weight:700; }
+
+/* ============ 控制面板 ============ */
+.panel{ display:flex; flex-direction:column; gap:14px; }
+.ctrl-card h3{ font-size:15px; font-weight:700; color:#1F3A5F; margin:0 0 10px; }
+.ctrl-list{ display:flex; flex-direction:column; gap:10px; }
+.ctrl-card .hint{ font-size:13px; color:#8A93A0; margin:8px 0 0; }
+
+/* ============ 按钮 ============ */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  min-height:46px; padding:10px 18px; border-radius:12px; border:1px solid transparent;
+  font-size:15px; font-weight:600; cursor:pointer; text-align:center;
+  transition:background .15s ease,transform .08s ease;
+}
+.btn:active{ transform:scale(.97); }
+.btn svg{ flex:none; }
+.btn.step1{ background:#EAF2FB; color:#1E6FBF; border-color:#BFD8F2; }
+.btn.step1:hover{ background:#DCECFA; }
+.btn.step2{ background:#FBEDEB; color:#C93A32; border-color:#F0C9C6; }
+.btn.step2:hover{ background:#F9E0DC; }
+.btn.accent{ background:#E8842D; color:#fff; }
+.btn.accent:hover{ background:#D9741F; }
+.btn.play{ background:#1F3A5F; color:#fff; }
+.btn.play:hover{ background:#16304E; }
+.btn.ghost{ background:#fff; color:#26313D; border-color:#C9D4E0; }
+.btn.ghost:hover{ border-color:#1E6FBF; color:#1E6FBF; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn:disabled:hover{ background:inherit; color:inherit; border-color:inherit; }
+
+/* ============ 北京素材区 ============ */
+.bj-card{ margin-top:18px; }
+.bj-tools{ display:flex; gap:10px; flex-wrap:wrap; }
+#bjChart{ width:100%; height:380px; }
+@media (max-width:768px){ #bjChart{ height:320px; } }
+
+/* ============ 弹窗 ============ */
+.modal-mask{
+  position:fixed; inset:0; background:rgba(31,58,95,.5);
+  display:flex; align-items:center; justify-content:center;
+  z-index:60; padding:20px;
+}
+.modal{
+  background:#fff; border-radius:18px; width:100%; max-width:520px;
+  padding:24px 24px 20px; max-height:86vh; overflow:auto;
+}
+.modal-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.m-title{ font-family:"Noto Serif SC","Songti SC",SimSun,serif; font-size:22px; font-weight:700; color:#1F3A5F; margin:0; }
+.modal-close{
+  background:#F3F6FA; border:1px solid #D7E0EA; border-radius:10px;
+  width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center;
+  cursor:pointer; color:#6B7889;
+}
+.modal-close:hover{ color:#1F3A5F; }
+.m-body{ font-size:16px; line-height:1.75; color:#26313D; }
+.m-body .hint{ font-size:13px; color:#8A93A0; margin:6px 0 10px; }
+.legend-row{ display:flex; align-items:center; gap:10px; margin:8px 0; }
+.key-line{ margin:14px 0 6px; font-size:17px; }
+.key-line em{ font-style:normal; color:#E8842D; font-weight:700; }
+.hl{ color:#1E6FBF; font-weight:700; }
+.hl-r{ color:#C93A32; font-weight:700; }
+.tip-line{ color:#6B7889; font-size:14px; margin-top:12px; }
+.formula{
+  text-align:center; font-size:30px; font-weight:900; color:#E8842D;
+  font-variant-numeric:tabular-nums; letter-spacing:1px; margin:12px 0 16px;
+  background:#FDF3E7; border:1px dashed #E8B47F; border-radius:12px; padding:14px;
+}
+.mode-btn{ width:100%; margin:6px 0; }
+.img-src{ width:100%; border-radius:10px; border:1px solid #D7E0EA; display:block; }
+.img-cap{ font-size:14px; color:#6B7889; text-align:center; margin:8px 0 0; }
+
+/* ============ 回放状态条 ============ */
+.playbar{
+  position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+  background:#1F3A5F; color:#fff; border:1px solid #314E77; border-radius:14px;
+  padding:12px 18px; display:flex; align-items:center; gap:14px;
+  max-width:min(680px,calc(100vw - 32px)); z-index:40; font-size:15px;
+}
+.playbar .cap{ flex:1; min-width:0; }
+.mini-btn{
+  background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.35);
+  color:#fff; border-radius:8px; padding:7px 12px; cursor:pointer; font-size:14px; white-space:nowrap;
+}
+.mini-btn:hover{ background:rgba(255,255,255,.24); }
+
+/* ============ ECharts tooltip ============ */
+.chart-tip{ font-family:"Noto Sans SC","Microsoft YaHei",sans-serif; font-size:14px; line-height:1.65; }
+.chart-tip .tip-day{ font-weight:700; font-size:15px; margin-bottom:4px; }
+.chart-tip .tip-row{ display:flex; align-items:center; gap:7px; }
+.chart-tip .tip-num{ font-variant-numeric:tabular-nums; font-weight:600; margin-left:auto; }
+.chart-tip .tip-diff{ border-top:1px dashed #C9D4E0; margin-top:6px; padding-top:6px; font-weight:700; }
+
+@media (prefers-reduced-motion: reduce){
+  .readout .big{ animation:none; }
+  .btn,.chip{ transition:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<header class="hero">
+  <div class="hero-inner">
+    <p class="kicker">小学数学 · 统计与概率</p>
+    <h1>复式折线统计图 <span class="accent">互动课件</span></h1>
+    <p class="sub">4月7～10日 我国南北两地最高气温对比 · 曾母暗沙（南海）× 漠河（黑龙江）</p>
+    <div class="hero-chips">
+      <span class="chip-item"><i class="mark-d"></i>曾母暗沙 · 蓝色折线</span>
+      <span class="chip-item"><i class="mark-r"></i>漠河 · 红色折线</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ============ 主教学区 ============ -->
+  <div class="main-grid">
+
+    <!-- 控制面板 -->
+    <aside class="panel">
+
+      <div class="card ctrl-card">
+        <h3>分步教学 · 认识折线图</h3>
+        <div class="ctrl-list">
+          <button class="btn step1" id="step1Btn" data-ctrl aria-label="步骤一：单独画曾母暗沙折线">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            步骤① 只画曾母暗沙
+          </button>
+          <button class="btn step2" id="step2Btn" data-ctrl aria-label="步骤二：叠加漠河折线并弹出图例讲解">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            步骤② 叠加漠河折线
+          </button>
+        </div>
+        <p class="hint">先看单式，再看复式；步骤②会同步弹出图例讲解。</p>
+      </div>
+
+      <div class="card ctrl-card">
+        <h3>课堂提问 · 对比温差</h3>
+        <div class="ctrl-list">
+          <button class="btn accent" id="q1Btn" data-ctrl aria-label="问题一：哪天温差最大">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.8.3-1.4 1-1.4 1.9v.5"/><path d="M12 17.5h.01"/></svg>
+            问题① 哪天温差最大？
+          </button>
+          <button class="btn accent" id="q2Btn" data-ctrl aria-label="问题二：温差25度是哪天">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.8.3-1.4 1-1.4 1.9v.5"/><path d="M12 17.5h.01"/></svg>
+            问题② 温差 25℃ 是哪天？
+          </button>
+        </div>
+        <p class="hint">点击后自动高亮答案日期，并弹出算式。</p>
+      </div>
+
+      <div class="card ctrl-card">
+        <h3>动态回放 · 两条折线</h3>
+        <div class="ctrl-list">
+          <button class="btn play" id="playBtn" data-ctrl aria-label="打开动态回放">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.9-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14z"/></svg>
+            动态回放
+          </button>
+        </div>
+        <p class="hint">包含「独立展示」与「同步叠加」两种播放模式。</p>
+      </div>
+
+      <div class="card ctrl-card">
+        <h3>教材素材 · 原图对照</h3>
+        <div class="ctrl-list">
+          <button class="btn ghost" id="imgMainBtn" data-ctrl aria-label="查看南北气温教材原图">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg>
+            教材原图 · 南北气温
+          </button>
+          <button class="btn ghost" id="imgBjBtn" data-ctrl aria-label="查看北京国庆教材原图">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg>
+            教材原图 · 北京国庆
+          </button>
+        </div>
+        <p class="hint">对照课本原图，检查课件数据是否一致。</p>
+      </div>
+
+    </aside>
+
+    <!-- 教学画板 -->
+    <section class="card teach-card" aria-label="南北两地最高气温教学画板">
+      <div class="card-head">
+        <h2>教学画板 · 我国南北两地最高气温</h2>
+        <div class="step-switch" role="tablist">
+          <button class="chip active" id="chip1" data-step="1" data-ctrl>步骤① 单式折线图</button>
+          <button class="chip" id="chip2" data-step="2" data-ctrl>步骤② 复式折线图</button>
+        </div>
+      </div>
+
+      <div class="chart-stage">
+        <div id="mainChart"></div>
+      </div>
+
+      <div class="readout" id="mainReadout" aria-live="polite">
+        <span class="txt">把鼠标移到折线上，自动弹出当天的温差算式。</span>
+      </div>
+
+      <details class="data-table">
+        <summary>查看数据表（4月7～10日）</summary>
+        <table class="tbl" id="mainTbl">
+          <thead><tr><th>日期</th><th>曾母暗沙 / ℃</th><th>漠河 / ℃</th><th>温差 / ℃</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </details>
+    </section>
+  </div>
+
+  <!-- ============ 北京素材区 ============ -->
+  <section class="card bj-card" aria-label="北京国庆高低温复式折线图">
+    <div class="card-head">
+      <h2>拓展素材 · 2012年“国庆”长假北京市最高和最低气温</h2>
+      <div class="bj-tools">
+        <button class="btn accent" id="bjDiffBtn" data-ctrl aria-label="一键计算每日温差并标出最大温差日">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.8.3-1.4 1-1.4 1.9v.5"/><path d="M12 17.5h.01"/></svg>
+          一键计算每日温差
+        </button>
+        <button class="btn play" id="bjPlayBtn" data-ctrl aria-label="动态播放北京高低温折线">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.9-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14z"/></svg>
+          动态播放
+        </button>
+      </div>
+    </div>
+
+    <div class="chart-stage">
+      <div id="bjChart"></div>
+    </div>
+
+    <div class="readout" id="bjReadout" aria-live="polite">
+      <span class="txt">把鼠标移到折线上，查看最高温、最低温和温差。</span>
+    </div>
+
+    <details class="data-table">
+      <summary>查看数据表（9月30日～10月7日）</summary>
+      <table class="tbl" id="bjTbl">
+        <thead><tr><th>日期</th><th>最高气温 / ℃</th><th>最低气温 / ℃</th><th>温差 / ℃</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </details>
+  </section>
+
+  <footer class="foot">
+    数据与图样来源：小学数学教材《复式折线统计图》例图（4月7～10日南北两地最高气温统计图；2012年“国庆”长假北京市最高和最低气温统计图）。本课件用于课堂演示。
+  </footer>
+</main>
+
+<!-- ============ 弹窗 ============ -->
+<div class="modal-mask" id="modalMask" hidden role="dialog" aria-modal="true">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<!-- ============ 回放状态条 ============ -->
+<div class="playbar" id="playbar" hidden aria-live="polite">
+  <span class="cap" id="playCaption"></span>
+  <button class="mini-btn" id="replayBtn">重播</button>
+  <button class="mini-btn" id="closePlaybar">收起</button>
+</div>
+
+<script>
+/* ================= 数据（与教材原图逐日一致） ================= */
+const MAIN_DATES = ['4月7日','4月8日','4月9日','4月10日'];
+const MAIN_BLUE = { name:'曾母暗沙', color:'#1E6FBF', symbol:'diamond', data:[29,29,29,30] };
+const MAIN_RED  = { name:'漠河',     color:'#C93A32', symbol:'rect',    data:[5,8,0,5] };
+const BJ_DATES  = ['9月30日','10月1日','10月2日','10月3日','10月4日','10月5日','10月6日','10月7日'];
+const BJ_HIGH = { name:'最高气温', color:'#C93A32', symbol:'diamond', data:[25,27,26,26,24,24,25,25] };
+const BJ_LOW  = { name:'最低气温', color:'#1E6FBF', symbol:'rect',    data:[11,14,16,11,11,11,10,12] };
+
+const mainDiffs = MAIN_BLUE.data.map((v,i)=>Math.abs(v - MAIN_RED.data[i]));
+const mainMaxDiff = Math.max.apply(null, mainDiffs);
+const mainMaxIdx = mainDiffs.indexOf(mainMaxDiff);   // 4月9日：29℃
+const q2Idx = mainDiffs.indexOf(25);                 // 温差25℃ → 4月10日：30-5=25
+
+const bjDiffs = BJ_HIGH.data.map((v,i)=>Math.abs(v - BJ_LOW.data[i]));
+const bjMaxDiff = Math.max.apply(null, bjDiffs);     // 15℃
+const bjMaxIdxs = bjDiffs.map((v,i)=>v===bjMaxDiff?i:-1).filter(i=>i>=0); // 10月3日、10月6日
+
+/* ================= DOM ================= */
+const modalMask = document.getElementById('modalMask');
+const modalBox = document.getElementById('modalBox');
+const playbar = document.getElementById('playbar');
+const playCaption = document.getElementById('playCaption');
+const mainReadout = document.getElementById('mainReadout');
+const bjReadout = document.getElementById('bjReadout');
+
+/* ================= 图标 ================= */
+const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ICON_PLAY = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.9-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14z"/></svg>';
+const ICON_RESTART = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
+
+/* ================= 读数条 ================= */
+function setReadout(el, big, txt){
+  if(big){ el.innerHTML = '<span class="big">' + big + '</span><span class="txt">' + txt + '</span>'; }
+  else{ el.innerHTML = '<span class="txt">' + txt + '</span>'; }
+}
+const MAIN_HINT = '把鼠标移到折线上，自动弹出当天的温差算式。';
+const BJ_HINT = '把鼠标移到折线上，查看最高温、最低温和温差。';
+
+/* ================= ECharts 工具 ================= */
+function lineSeries(cfg, labelsOn){
+  return {
+    name: cfg.name,
+    type: 'line',
+    data: cfg.data,
+    symbol: cfg.symbol,
+    symbolSize: 11,
+    showSymbol: true,
+    lineStyle: { width: 3, color: cfg.color },
+    itemStyle: { color: cfg.color },
+    label: labelsOn ? { show:true, position:'top', distance:8, fontSize:15, fontWeight:700, formatter:(p)=>{ return p.value + '℃'; } } : { show:false },
+    emphasis: { focus: 'series' },
+    markPoint: { data: [] },
+    markLine: { data: [], symbol: 'none' }
+  };
+}
+
+function mainTipFormatter(params){
+  const day = params[0].axisValue;
+  const rows = params.map((p)=>{
+    const cls = (p.seriesName === MAIN_BLUE.name) ? 'mark-d' : 'mark-r';
+    return '<div class="tip-row"><i class="' + cls + '"></i><span>' + p.seriesName + '</span><span class="tip-num">' + p.value + '℃</span></div>';
+  }).join('');
+  let diffLine = '';
+  if(params.length > 1){
+    const z = params[0].value, m = params[1].value, d = Math.abs(z - m);
+    diffLine = '<div class="tip-diff">温差：' + z + ' − ' + m + ' = <span class="tip-num">' + d + '℃</span></div>';
+  }
+  return '<div class="tip-day">' + day + '</div>' + rows + diffLine;
+}
+
+function bjTipFormatter(params){
+  const day = params[0].axisValue;
+  const hi = params[0].value, lo = params[1].value, d = Math.abs(hi - lo);
+  return '<div class="tip-day">' + day + '</div>' +
+    '<div class="tip-row"><i class="mark-r"></i><span>最高气温</span><span class="tip-num">' + hi + '℃</span></div>' +
+    '<div class="tip-row"><i class="mark-d"></i><span>最低气温</span><span class="tip-num">' + lo + '℃</span></div>' +
+    '<div class="tip-diff">温差：' + hi + ' − ' + lo + ' = <span class="tip-num">' + d + '℃</span></div>';
+}
+
+function buildMainOption(step, emptyData){
+  const blue = lineSeries(MAIN_BLUE, true);
+  if(emptyData) blue.data = [];
+  const series = [blue];
+  if(step === 2){
+    const red = lineSeries(MAIN_RED, true);
+    if(emptyData) red.data = [];
+    series.push(red);
+  }
+  return {
+    animationDuration: 900,
+    animationDurationUpdate: 500,
+    backgroundColor: 'transparent',
+    grid: { left: 64, right: 28, top: 70, bottom: 60 },
+    legend: { bottom: 4, left: 'center', itemWidth: 14, itemHeight: 12, textStyle: { color:'#26313D', fontSize:14 } },
+    tooltip: {
+      trigger: 'axis', confine: true, className: 'chart-tip',
+      backgroundColor: '#FFFFFF', borderColor: '#D7E0EA', borderWidth: 1,
+      textStyle: { color: '#26313D', fontSize: 14 },
+      formatter: mainTipFormatter
+    },
+    xAxis: {
+      type: 'category', boundaryGap: false, data: MAIN_DATES,
+      axisLine: { lineStyle: { color: '#8A93A0' } },
+      axisTick: { alignWithLabel: true },
+      axisLabel: { color: '#26313D', fontSize: 14, interval: 0, margin: 12 }
+    },
+    yAxis: {
+      type: 'value', min: 0, max: 35, interval: 5,
+      name: '气温/℃', nameLocation: 'middle', nameGap: 46,
+      nameTextStyle: { color: '#6B7889', fontSize: 13 },
+      axisLabel: { color: '#26313D', fontSize: 13 },
+      splitLine: { lineStyle: { color: '#DCE4ED', type: 'dashed' } },
+      axisLine: { show: false }
+    },
+    series: series
+  };
+}
+
+function buildBjOption(emptyData){
+  const high = lineSeries(BJ_HIGH, true);
+  const low = lineSeries(BJ_LOW, true);
+  if(emptyData){ high.data = []; low.data = []; }
+  return {
+    animationDuration: 900,
+    animationDurationUpdate: 500,
+    backgroundColor: 'transparent',
+    grid: { left: 60, right: 28, top: 70, bottom: 60 },
+    legend: { bottom: 4, left: 'center', itemWidth: 14, itemHeight: 12, textStyle: { color:'#26313D', fontSize:14 } },
+    tooltip: {
+      trigger: 'axis', confine: true, className: 'chart-tip',
+      backgroundColor: '#FFFFFF', borderColor: '#D7E0EA', borderWidth: 1,
+      textStyle: { color: '#26313D', fontSize: 14 },
+      formatter: bjTipFormatter
+    },
+    xAxis: {
+      type: 'category', boundaryGap: false, data: BJ_DATES,
+      axisLine: { lineStyle: { color: '#8A93A0' } },
+      axisTick: { alignWithLabel: true },
+      axisLabel: { color: '#26313D', fontSize: 13, interval: 0, margin: 10 }
+    },
+    yAxis: {
+      type: 'value', min: 0, max: 30, interval: 5,
+      name: '气温/℃', nameLocation: 'middle', nameGap: 42,
+      nameTextStyle: { color: '#6B7889', fontSize: 13 },
+      axisLabel: { color: '#26313D', fontSize: 13 },
+      splitLine: { lineStyle: { color: '#DCE4ED', type: 'dashed' } },
+      axisLine: { show: false }
+    },
+    series: [high, low]
+  };
+}
+
+/* ================= 图表实例 ================= */
+const mainChart = echarts.init(document.getElementById('mainChart'));
+const bjChart = echarts.init(document.getElementById('bjChart'));
+new ResizeObserver(()=>mainChart.resize()).observe(document.getElementById('mainChart'));
+new ResizeObserver(()=>bjChart.resize()).observe(document.getElementById('bjChart'));
+
+/* ================= 教学步骤 ================= */
+let mainStep = 1;
+let playing = false;
+let playTimer = null;
+let lastMode = null;
+
+function updateStepChips(){
+  document.getElementById('chip1').classList.toggle('active', mainStep === 1);
+  document.getElementById('chip2').classList.toggle('active', mainStep === 2);
+}
+
+function renderMain(step, empty){
+  mainStep = step;
+  mainChart.setOption(buildMainOption(step, !!empty), { notMerge: true });
+  updateStepChips();
+}
+
+function goStep(s){
+  if(playing) return;
+  renderMain(s);
+  setReadout(mainReadout, null, MAIN_HINT);
+  if(s === 2){
+    setTimeout(()=>{
+      if(modalMask.hidden) openModal(legendModalHtml());
+    }, 700);
+  }
+}
+
+/* ================= 高亮标记 ================= */
+function clearMarksMain(){
+  mainChart.setOption({
+    series: [
+      { name: MAIN_BLUE.name, markPoint: { data: [] }, markLine: { data: [] } },
+      { name: MAIN_RED.name,  markPoint: { data: [] } }
+    ]
+  });
+}
+
+function markMainQ(idx){
+  const day = MAIN_DATES[idx];
+  const blueV = MAIN_BLUE.data[idx], redV = MAIN_RED.data[idx];
+  const mkBlue = { coord:[day, blueV], value: blueV, symbol:'diamond', symbolSize:32, itemStyle:{ color:'#E8842D' },
+    label:{ show:true, formatter:(p)=>{ return p.value; }, position:'inside', fontSize:16, fontWeight:900 } };
+  const mkRed = { coord:[day, redV], value: redV, symbol:'rect', symbolSize:28, itemStyle:{ color:'#E8842D' },
+    label:{ show:true, formatter:(p)=>{ return p.value; }, position:'inside', fontSize:16, fontWeight:900 } };
+  mainChart.setOption({
+    series: [
+      { name: MAIN_BLUE.name, markPoint: { data:[mkBlue] },
+        markLine: { data:[{ xAxis: day, name: day }], symbol:'none',
+          lineStyle:{ color:'#E8842D', type:'dashed', width:2 },
+          label:{ show:true, formatter:(p)=>{ return p.name; }, position:'insideEndTop', fontSize:13, fontWeight:700,
+            backgroundColor:'#FFFFFF', borderColor:'#E8842D', borderWidth:1, borderRadius:6, padding:[2,8] } } },
+      { name: MAIN_RED.name, markPoint: { data:[mkRed] } }
+    ]
+  });
+}
+
+/* ================= 课堂提问 ================= */
+function askQuestion(kind){
+  if(playing) return;
+  if(kind === 'q1'){
+    const idx = mainMaxIdx;
+    const day = MAIN_DATES[idx];
+    const z = MAIN_BLUE.data[idx], m = MAIN_RED.data[idx], d = mainMaxDiff;
+    clearMarksMain();
+    markMainQ(idx);
+    setReadout(mainReadout, d + '℃', day + '温差最大：' + z + ' − ' + m + ' = ' + d + '℃');
+    openModal(
+      '<div class="modal-head"><h3 class="m-title">问题① 哪天温差最大？</h3><button class="modal-close" data-close aria-label="关闭">' + ICON_CLOSE + '</button></div>' +
+      '<div class="m-body">' +
+        '<p>4天里温差最大的是 <b>' + day + '</b>：</p>' +
+        '<div class="legend-row"><i class="mark-d"></i><span>曾母暗沙 ' + z + '℃</span></div>' +
+        '<div class="legend-row"><i class="mark-r"></i><span>漠河 ' + m + '℃</span></div>' +
+        '<div class="formula">' + z + ' − ' + m + ' = ' + d + '℃</div>' +
+        '<p class="tip-line">两条折线的端点已用橙色高亮，9日温差被放大显示。</p>' +
+      '</div>'
+    );
+  } else {
+    const idx = q2Idx;
+    const day = MAIN_DATES[idx];
+    const z = MAIN_BLUE.data[idx], m = MAIN_RED.data[idx], d = mainDiffs[idx];
+    clearMarksMain();
+    markMainQ(idx);
+    setReadout(mainReadout, d + '℃', day + '：' + z + ' − ' + m + ' = ' + d + '℃');
+    openModal(
+      '<div class="modal-head"><h3 class="m-title">问题② 温差 25℃ 是哪天？</h3><button class="modal-close" data-close aria-label="关闭">' + ICON_CLOSE + '</button></div>' +
+      '<div class="m-body">' +
+        '<p>温差正好是 25℃ 的那天是 <b>' + day + '</b>：</p>' +
+        '<div class="legend-row"><i class="mark-d"></i><span>曾母暗沙 ' + z + '℃</span></div>' +
+        '<div class="legend-row"><i class="mark-r"></i><span>漠河 ' + m + '℃</span></div>' +
+        '<div class="formula">' + z + ' − ' + m + ' = ' + d + '℃</div>' +
+        '<p class="tip-line">两条折线同步对比展示。小提醒：4月7日温差是 24℃（29 − 5），不是 25℃ 哦。</p>' +
+      '</div>'
+    );
+  }
+}
+
+/* ================= 动态回放 ================= */
+function setControlsDisabled(disabled){
+  document.querySelectorAll('[data-ctrl]').forEach((b)=>{ b.disabled = disabled; });
+}
+
+function showPlaybar(show){ playbar.hidden = !show; }
+
+function setPlayCaption(txt){ playCaption.textContent = txt; }
+
+function stopPlayback(){
+  clearTimeout(playTimer);
+  playing = false;
+  setControlsDisabled(false);
+}
+
+function finishPlayback(){
+  playing = false;
+  setControlsDisabled(false);
+  updateStepChips();
+}
+
+function startPlayback(mode){
+  if(playing) return;
+  playing = true;
+  lastMode = mode;
+  setControlsDisabled(true);
+  renderMain(2, true);
+  setReadout(mainReadout, null, MAIN_HINT);
+  showPlaybar(true);
+
+  const blue = MAIN_BLUE.data, red = MAIN_RED.data;
+  const seq = [];
+
+  if(mode === 1){
+    // 模式① 独立展示：先曾母暗沙（平稳），再漠河（起伏）
+    const bCaps = ['曾母暗沙 · 4月7日 29℃','曾母暗沙 · 4月8日 29℃','曾母暗沙 · 4月9日 29℃','曾母暗沙 · 4月10日 30℃'];
+    for(let i=0;i<4;i++){
+      seq.push({ t: 200 + i*500, k:[i+1,0], cap: bCaps[i], ro: '曾母暗沙 ' + blue[i] + '℃（' + MAIN_DATES[i] + '）' });
+    }
+    seq.push({ t: 2400, k:[4,0], cap:'曾母暗沙：4天气温都在29℃上下，变化平稳。', ro:null });
+    const rCaps = ['漠河 · 4月7日 5℃','漠河 · 4月8日 8℃','漠河 · 4月9日 0℃','漠河 · 4月10日 5℃'];
+    for(let i=0;i<4;i++){
+      seq.push({ t: 2900 + i*500, k:[4,i+1], cap: rCaps[i],
+        ro: MAIN_DATES[i] + '：' + blue[i] + ' − ' + red[i] + ' = ' + Math.abs(blue[i]-red[i]) + '℃' });
+    }
+    seq.push({ t: 5000, k:[4,4], cap:'漠河：5 → 8 → 0 → 5℃，气温起伏很大。', ro:null });
+    seq.push({ t: 5600, k:[4,4], cap:'两条折线合在一起，就是复式折线统计图。', done:true, ro:null });
+  } else {
+    // 模式② 同步叠加播放
+    const caps = ['4月7日：蓝29℃ 对 红5℃','4月8日：蓝29℃ 对 红8℃','4月9日：蓝29℃ 对 红0℃','4月10日：蓝30℃ 对 红5℃'];
+    for(let i=0;i<4;i++){
+      seq.push({ t: 200 + i*600, k:[i+1,i+1], cap: caps[i],
+        ro: MAIN_DATES[i] + '：' + blue[i] + ' − ' + red[i] + ' = ' + Math.abs(blue[i]-red[i]) + '℃' });
+    }
+    seq.push({ t: 2800, k:[4,4], cap:'两线同步画完：蓝线平稳、红线起伏，对比一目了然。', done:true, ro:null });
+  }
+
+  seq.forEach((s)=>{
+    playTimer = setTimeout(()=>{
+      mainChart.setOption({
+        series: [
+          { name: MAIN_BLUE.name, data: blue.slice(0, s.k[0]) },
+          { name: MAIN_RED.name,  data: red.slice(0, s.k[1]) }
+        ]
+      });
+      setPlayCaption(s.cap);
+      if(s.ro){ setReadout(mainReadout, null, s.ro); }
+      if(s.done){ finishPlayback(); }
+    }, s.t);
+  });
+}
+
+document.getElementById('replayBtn').addEventListener('click', ()=>{ if(lastMode) startPlayback(lastMode); });
+document.getElementById('closePlaybar').addEventListener('click', ()=>{
+  stopPlayback();
+  showPlaybar(false);
+  renderMain(2);
+  setReadout(mainReadout, null, MAIN_HINT);
+});
+
+/* ================= 北京素材区 ================= */
+function clearMarksBj(){
+  bjChart.setOption({
+    series: [
+      { name: BJ_HIGH.name, markPoint: { data: [] }, markLine: { data: [] } },
+      { name: BJ_LOW.name,  markPoint: { data: [] } }
+    ]
+  });
+}
+
+function markBjQuestion(){
+  const mkFor = (cfg, i)=>{
+    return { coord:[BJ_DATES[i], cfg.data[i]], value: cfg.data[i], symbol: cfg.symbol, symbolSize: 28,
+      itemStyle:{ color:'#E8842D' },
+      label:{ show:true, formatter:(p)=>{ return p.value; }, position:'inside', fontSize:15, fontWeight:900 } };
+  };
+  bjChart.setOption({
+    series: [
+      { name: BJ_HIGH.name,
+        markPoint: { data: bjMaxIdxs.map((i)=>mkFor(BJ_HIGH, i)) },
+        markLine: { data: bjMaxIdxs.map((i)=>({ xAxis: BJ_DATES[i], name: BJ_DATES[i] })), symbol:'none',
+          lineStyle:{ color:'#E8842D', type:'dashed', width:2 },
+          label:{ show:true, formatter:(p)=>{ return p.name; }, position:'insideEndTop', fontSize:12, fontWeight:700,
+            backgroundColor:'#FFFFFF', borderColor:'#E8842D', borderWidth:1, borderRadius:6, padding:[2,6] } } },
+      { name: BJ_LOW.name, markPoint: { data: bjMaxIdxs.map((i)=>mkFor(BJ_LOW, i)) } }
+    ]
+  });
+}
+
+function askBjDiff(){
+  if(playing) return;
+  clearMarksBj();
+  markBjQuestion();
+  const d0 = BJ_DATES[bjMaxIdxs[0]], d1 = BJ_DATES[bjMaxIdxs[1]];
+  const h0 = BJ_HIGH.data[bjMaxIdxs[0]], l0 = BJ_LOW.data[bjMaxIdxs[0]];
+  const h1 = BJ_HIGH.data[bjMaxIdxs[1]], l1 = BJ_LOW.data[bjMaxIdxs[1]];
+  setReadout(bjReadout, bjMaxDiff + '℃', d0 + '与' + d1 + '温差最大：' + h0 + ' − ' + l0 + ' = ' + bjMaxDiff + '℃');
+  openModal(
+    '<div class="modal-head"><h3 class="m-title">一键计算每日温差</h3><button class="modal-close" data-close aria-label="关闭">' + ICON_CLOSE + '</button></div>' +
+    '<div class="m-body">' +
+      '<p>国庆假期里，温差最大的有 <b>两天</b>，都是 ' + bjMaxDiff + '℃：</p>' +
+      '<div class="formula">' + d0 + '：' + h0 + ' − ' + l0 + ' = ' + bjMaxDiff + '℃</div>' +
+      '<div class="formula">' + d1 + '：' + h1 + ' − ' + l1 + ' = ' + bjMaxDiff + '℃</div>' +
+      '<p class="tip-line">其余几天温差在 10～14℃ 之间，详见下方数据表。</p>' +
+    '</div>'
+  );
+}
+
+function startBjPlayback(){
+  if(playing) return;
+  playing = true;
+  setControlsDisabled(true);
+  showPlaybar(false);
+  bjChart.setOption(buildBjOption(true), { notMerge: true });
+  setReadout(bjReadout, null, BJ_HINT);
+  const high = BJ_HIGH.data, low = BJ_LOW.data;
+  const seq = [];
+  for(let i=0;i<8;i++){
+    seq.push({ t: 200 + i*450, k:[i+1,i+1],
+      cap: BJ_DATES[i] + '：最高 ' + high[i] + '℃，最低 ' + low[i] + '℃',
+      ro: BJ_DATES[i] + '：' + high[i] + ' − ' + low[i] + ' = ' + Math.abs(high[i]-low[i]) + '℃' });
+  }
+  seq.push({ t: 4100, k:[8,8], cap:'最高、最低两条折线绘制完成，也是一幅复式折线统计图。', done:true, ro:null });
+  seq.forEach((s)=>{
+    playTimer = setTimeout(()=>{
+      bjChart.setOption({
+        series: [
+          { name: BJ_HIGH.name, data: high.slice(0, s.k[0]) },
+          { name: BJ_LOW.name,  data: low.slice(0, s.k[1]) }
+        ]
+      });
+      setReadout(bjReadout, null, s.ro || BJ_HINT);
+      if(s.done){ finishPlayback(); }
+    }, s.t);
+  });
+}
+
+/* ================= 弹窗 ================= */
+function openModal(html){
+  modalBox.innerHTML = html;
+  modalMask.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(){
+  modalMask.hidden = true;
+  document.body.style.overflow = '';
+}
+
+function legendModalHtml(){
+  return (
+    '<div class="modal-head"><h3 class="m-title">认识复式折线统计图</h3><button class="modal-close" data-close aria-label="关闭">' + ICON_CLOSE + '</button></div>' +
+    '<div class="m-body">' +
+      '<p>看，画面上现在出现了 <strong>两条折线</strong>：</p>' +
+      '<div class="legend-row"><i class="mark-d"></i><span><b>蓝色折线</b> —— 曾母暗沙最高气温</span></div>' +
+      '<div class="legend-row"><i class="mark-r"></i><span><b>红色折线</b> —— 漠河最高气温</span></div>' +
+      '<p class="key-line">两种颜色的折线代表<em>两组不同的数据</em>，这样的统计图叫<strong>复式折线统计图</strong>。</p>' +
+      '<p class="tip-line">好处：一张图就能对比两地气温的变化 —— <span class="hl">曾母暗沙平稳</span>，<span class="hl-r">漠河起伏大</span>。</p>' +
+    '</div>'
+  );
+}
+
+const IMG_ASSETS = {
+  main: {
+    src: 'https://aka.doubaocdn.com/s/bDhNuAV3ms',
+    cap: '教材原图 · 4月7～10日我国南北两地最高气温统计图',
+    note: '曾母暗沙（蓝菱形）29、29、29、30℃；漠河（红方形）5、8、0、5℃，与课件数据一致。'
+  },
+  bj: {
+    src: 'https://aka.doubaocdn.com/s/OdDhyNm3Zm',
+    cap: '教材原图 · 2012年“国庆”长假期间北京市最高和最低气温统计图',
+    note: '最高气温（红菱形）与最低气温（蓝方形）逐日对比，与课件数据一致。'
+  }
+};
+
+function imgModalHtml(key){
+  const g = IMG_ASSETS[key];
+  return (
+    '<div class="modal-head"><h3 class="m-title">教材原图对照</h3><button class="modal-close" data-close aria-label="关闭">' + ICON_CLOSE + '</button></div>' +
+    '<div class="m-body">' +
+      '<img class="img-src" src="' + g.src + '" alt="' + g.cap + '">' +
+      '<p class="img-cap">' + g.cap + '</p>' +
+      '<p class="tip-line">' + g.note + '</p>' +
+    '</div>'
+  );
+}
+
+function playModalHtml(){
+  return (
+    '<div class="modal-head"><h3 class="m-title">动态回放 · 选择播放模式</h3><button class="modal-close" data-close aria-label="关闭">' + ICON_CLOSE + '</button></div>' +
+    '<div class="m-body">' +
+      '<p>选择一种方式，观察两地气温折线的变化：</p>' +
+      '<button class="btn play mode-btn" data-mode="1" aria-label="模式一：独立展示">' + ICON_PLAY + '模式① 独立展示</button>' +
+      '<p class="hint">先播放曾母暗沙的平稳折线，再播放漠河的大幅起伏。</p>' +
+      '<button class="btn play mode-btn" data-mode="2" aria-label="模式二：同步叠加播放">' + ICON_PLAY + '模式② 同步叠加播放</button>' +
+      '<p class="hint">两条折线同步绘制运动，对比两组折线的变化。</p>' +
+      '<p class="tip-line">回放过程中可随时点击下方「收起」停止。</p>' +
+    '</div>'
+  );
+}
+
+modalMask.addEventListener('click', (e)=>{
+  if(e.target.closest('[data-close]')){ closeModal(); return; }
+  if(e.target === modalMask){ closeModal(); return; }
+  const modeBtn = e.target.closest('[data-mode]');
+  if(modeBtn){
+    const mode = Number(modeBtn.getAttribute('data-mode'));
+    closeModal();
+    startPlayback(mode);
+  }
+});
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && !modalMask.hidden) closeModal();
+});
+
+/* ================= 数据表 ================= */
+function fillTables(){
+  const mainBody = document.querySelector('#mainTbl tbody');
+  let mainRows = '';
+  MAIN_DATES.forEach((d,i)=>{
+    const diff = mainDiffs[i];
+    const cls = (diff === mainMaxDiff) ? ' class="diff-max"' : '';
+    mainRows += '<tr' + cls + '><td>' + d + '</td><td>' + MAIN_BLUE.data[i] + '</td><td>' + MAIN_RED.data[i] + '</td><td>' + diff + '</td></tr>';
+  });
+  mainBody.innerHTML = mainRows;
+
+  const bjBody = document.querySelector('#bjTbl tbody');
+  let bjRows = '';
+  BJ_DATES.forEach((d,i)=>{
+    const diff = bjDiffs[i];
+    const cls = (diff === bjMaxDiff) ? ' class="diff-max"' : '';
+    bjRows += '<tr' + cls + '><td>' + d + '</td><td>' + BJ_HIGH.data[i] + '</td><td>' + BJ_LOW.data[i] + '</td><td>' + diff + '</td></tr>';
+  });
+  bjBody.innerHTML = bjRows;
+}
+
+/* ================= 悬停联动读数条 ================= */
+mainChart.on('updateAxisPointer', (params)=>{
+  if(playing) return;
+  const idx = MAIN_DATES.indexOf(params.axisValue);
+  if(idx < 0) return;
+  if(mainStep === 1){
+    setReadout(mainReadout, null, '曾母暗沙 ' + MAIN_DATES[idx] + '：' + MAIN_BLUE.data[idx] + '℃（单式折线图）');
+  } else {
+    const z = MAIN_BLUE.data[idx], m = MAIN_RED.data[idx], d = Math.abs(z - m);
+    setReadout(mainReadout, d + '℃', MAIN_DATES[idx] + '：' + z + ' − ' + m + ' = ' + d + '℃');
+  }
+});
+mainChart.on('globalout', ()=>{ if(!playing) setReadout(mainReadout, null, MAIN_HINT); });
+
+bjChart.on('updateAxisPointer', (params)=>{
+  if(playing) return;
+  const idx = BJ_DATES.indexOf(params.axisValue);
+  if(idx < 0) return;
+  const hi = BJ_HIGH.data[idx], lo = BJ_LOW.data[idx], d = Math.abs(hi - lo);
+  setReadout(bjReadout, d + '℃', BJ_DATES[idx] + '：' + hi + ' − ' + lo + ' = ' + d + '℃');
+});
+bjChart.on('globalout', ()=>{ if(!playing) setReadout(bjReadout, null, BJ_HINT); });
+
+/* ================= 事件绑定 ================= */
+document.getElementById('chip1').addEventListener('click', ()=>goStep(1));
+document.getElementById('chip2').addEventListener('click', ()=>goStep(2));
+document.getElementById('step1Btn').addEventListener('click', ()=>goStep(1));
+document.getElementById('step2Btn').addEventListener('click', ()=>goStep(2));
+document.getElementById('q1Btn').addEventListener('click', ()=>askQuestion('q1'));
+document.getElementById('q2Btn').addEventListener('click', ()=>askQuestion('q2'));
+document.getElementById('playBtn').addEventListener('click', ()=>{ openModal(playModalHtml()); });
+document.getElementById('imgMainBtn').addEventListener('click', ()=>{ openModal(imgModalHtml('main')); });
+document.getElementById('imgBjBtn').addEventListener('click', ()=>{ openModal(imgModalHtml('bj')); });
+document.getElementById('bjDiffBtn').addEventListener('click', askBjDiff);
+document.getElementById('bjPlayBtn').addEventListener('click', startBjPlayback);
+
+/* ================= 初始化 ================= */
+fillTables();
+renderMain(1);
+setReadout(mainReadout, null, MAIN_HINT);
+setReadout(bjReadout, null, BJ_HINT);
+</script>
+</body>
+</html>
